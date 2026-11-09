@@ -1,0 +1,9 @@
+# environnement
+.venv/
+__pycache__/
+.ipynb_checkpoints/
+.env
+
+# données : publiées sur Hugging Face, pas dans Git
+# data/interim contient les textes non anonymisés, data/controle des extraits avec les noms d'origine
+data/
