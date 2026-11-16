@@ -28,6 +28,12 @@ configs:
     path: dpo_train.jsonl
   - split: validation
     path: dpo_val.jsonl
+- config_name: triage
+  data_files:
+  - split: train
+    path: triage_train.jsonl
+  - split: test
+    path: triage_test.jsonl
 - config_name: eval_mediqal_qcu
   data_files:
   - split: test
@@ -48,7 +54,7 @@ configs:
 
 # Corpus médical bilingue pour le POC de triage du CHSA
 
-Version 1.0. Jeu de données préparé pour un projet de formation : le fine-tuning supervisé (SFT) puis l'alignement par préférences (DPO) du modèle Qwen3-1.7B-Base, dans le cadre d'un prototype d'assistant de triage aux urgences. Il ne contient aucune donnée de patient du CHSA, uniquement des corpus publics retravaillés.
+Version 1.1 (la version 1.0 plus les cas de triage). Jeu de données préparé pour un projet de formation : le fine-tuning supervisé (SFT) puis l'alignement par préférences (DPO) du modèle Qwen3-1.7B-Base, dans le cadre d'un prototype d'assistant de triage aux urgences. Il ne contient aucune donnée de patient du CHSA, uniquement des corpus publics retravaillés.
 
 Ce jeu de données ne doit pas servir à poser un diagnostic ni à conseiller un patient.
 
@@ -56,6 +62,7 @@ Ce jeu de données ne doit pas servir à poser un diagnostic ni à conseiller un
 
 - `sft` : 5 000 paires instruction-réponse, moitié en français et moitié en anglais (4 500 en entraînement, 250 en validation, 250 en test). Format conversationnel : une colonne `messages` avec un message `user` et un message `assistant`.
 - `dpo` : 3 300 paires de préférences en anglais (3 000 en entraînement, 300 en validation). Colonnes `prompt`, `chosen` et `rejected`, au format attendu par le `DPOTrainer` de TRL.
+- `triage` : 497 cas cliniques de MediQAl avec un niveau de priorité (400 en entraînement, 97 en test), en français, au même format que le jeu SFT. Niveaux attribués par un grand modèle de langage, voir plus bas.
 - Quatre jeux d'évaluation, jamais utilisés pour l'entraînement : 500 QCM à réponse unique et 300 QCM à réponses multiples tirés du test officiel de MediQAl, les 321 questions de test de FrenchMedMCQA, et les 777 paires de test d'UltraMedical-Preference.
 
 Composition du jeu SFT (entraînement, validation et test réunis) :
@@ -81,7 +88,7 @@ Chaque exemple porte les champs suivants, en plus du texte :
 - `id` : identifiant stable, construit avec la source et l'identifiant d'origine
 - `source`, `sous_source`, `id_origine`, `licence`
 - `langue` : `fr` ou `en`
-- `tache` : `qcm_reponse_unique`, `qcm_reponses_multiples`, `question_ouverte`, `question_patient` ou `preference`
+- `tache` : `qcm_reponse_unique`, `qcm_reponses_multiples`, `question_ouverte`, `question_patient`, `preference` ou `triage`
 - `specialite` : spécialité médicale donnée par la source (MediQAl, FrenchMedMCQA), sinon vide
 - `type_question` : « Understanding » ou « Reasoning » pour MediQAl, type de question pour MedQuAD, catégorie de la paire pour UltraMedical
 - `origine_annotation` et `niveau_confiance` : `eleve` pour une correction officielle d'examen, `moyen` pour un site de santé public ou un classement revu par des experts, `faible` pour une préférence choisie par GPT-4
@@ -90,18 +97,29 @@ Chaque exemple porte les champs suivants, en plus du texte :
 - `nb_elements_masques` : nombre d'éléments remplacés à l'anonymisation
 - `version`
 - Jeu DPO seulement : `note_choisie`, `note_rejetee` (notes de GPT-4 sur 5), `modele_choisi`, `modele_rejete`
+- Jeu de triage seulement : `tri_french` (tri 1, 2, 3A, 3B, 4 ou 5) et `niveau` (urgence maximale, modérée ou différée)
 
 Symptômes, antécédents et constantes sont repérés par des listes de mots et des expressions régulières. Le repérage est approximatif et ne couvre qu'une partie des exemples : au moins un symptôme pour 29,7 % des exemples de MediQAl du jeu d'entraînement, au moins une constante pour 16,1 %. Les valeurs sont recopiées telles qu'elles sont écrites, sans contrôle de vraisemblance.
 
 ## Préparation
 
-Notebooks du dépôt : `01_preparation_donnees.ipynb` (chargement, nettoyage, format, découpage) et `02_anonymisation.ipynb`. Un journal des transformations (`journal_transformations.json`) donne le nombre de lignes avant et après chaque filtre.
+Notebooks du dépôt : `01_preparation_donnees.ipynb` (chargement, nettoyage, format, découpage), `02_anonymisation.ipynb` et `03_triage.ipynb` (cas de triage). Un journal des transformations (`journal_transformations.json`) donne le nombre de lignes avant et après chaque filtre.
 
 Principaux filtres :
 - doublons retirés dans chaque source
 - toute question présente dans un jeu de test officiel retirée de l'entraînement (MediQAl partage des questions entre ses parties)
 - 1 024 tokens Qwen3 au plus par exemple
 - jeu DPO : questions issues de MedQuAD retirées (recoupement avec le SFT), écart d'au moins 1 point sur 5 entre la réponse préférée et l'autre, une paire par question, et autant de paires où la réponse préférée est la plus longue que de paires où elle est la plus courte
+
+## Cas de triage (version 1.1)
+
+Aucun des corpus d'origine ne donne de niveau de priorité. Le notebook `03_triage.ipynb` en fabrique à partir des cas cliniques de MediQAl déjà présents dans le jeu, donc déjà anonymisés :
+- les cas d'entraînement viennent de `sft_train`, les cas de test des jeux d'évaluation de MediQAl, et un cas présent des deux côtés (au mot près ou presque) est écarté
+- chaque cas est classé par Claude Opus 5.5 (API Anthropic) avec l'échelle de tri FRENCH de la Société française de médecine d'urgence (référentiel V1.2, décembre 2019), donnée en entier dans le prompt
+- les six niveaux de FRENCH sont regroupés dans les trois niveaux du projet : urgence maximale (tri 1 et 2), modérée (tri 3A et 3B), différée (tri 4 et 5)
+- la réponse attendue donne le niveau, le tri FRENCH, une explication et la conduite à tenir à l'accueil
+
+Ce sont des données synthétiques : les niveaux n'ont pas été validés par des médecins (`niveau_confiance` à `faible`). Un échantillon de 50 cas est relu à la main. Les cas viennent d'examens de médecine : ils sont plus graves en moyenne qu'une salle d'attente réelle (219 cas sur 497 en urgence maximale) et rédigés par des enseignants, pas par des patients.
 
 ## Anonymisation
 
@@ -113,7 +131,7 @@ Limite importante : les jeux d'origine sont publics. Une personne qui dispose de
 
 ## Limites
 
-- Aucun des corpus ne porte sur le triage aux urgences : ce sont des QCM d'examens, des questions de patients et des préférences entre réponses.
+- Aucun des corpus d'origine ne porte sur le triage aux urgences. Les cas de triage de la version 1.1 sont étiquetés par un modèle de langage, pas par des soignants.
 - Le jeu DPO est entièrement en anglais.
 - Les préférences d'UltraMedical ont été choisies par GPT-4, pas par des médecins (sauf le jeu de test, revu par des experts d'après ses auteurs).
 - Les questions de FrenchMedMCQA viennent d'examens de pharmacie.
