@@ -7,3 +7,12 @@ __pycache__/
 # données : publiées sur Hugging Face, pas dans Git
 # data/interim contient les textes non anonymisés, data/controle des extraits avec les noms d'origine
 data/
+
+# entraînement : checkpoints, adaptateurs et modèles fusionnés (trop lourds pour Git), suivi MLflow local
+models/
+mlflow.db
+mlruns/
+mlartifacts/
+
+# journal des appels à l'API de démo (contient les cas saisis)
+logs/
