@@ -1,0 +1,54 @@
+name: CI
+
+# Tests de l'API à chaque push sur main et à chaque pull request.
+# Sur main, si les tests passent, l'image Docker de l'API est publiée sur GitHub Container Registry.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    name: Tests de l'API
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: api
+    steps:
+      - uses: actions/checkout@v7
+      - name: Installer uv
+        uses: astral-sh/setup-uv@v10.4.0
+      - name: Installer les dépendances (avec pytest)
+        run: uv sync --frozen
+      - name: Lancer les tests
+        run: uv run pytest
+
+  docker:
+    name: Image Docker
+    needs: tests
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v7
+      - name: Connexion à GitHub Container Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Installer Docker Buildx
+        uses: docker/setup-buildx-action@v4
+      - name: Build et push de l'image
+        uses: docker/build-push-action@v7
+        with:
+          context: ./api
+          push: true
+          tags: |
+            ghcr.io/g-hostin/medical-triage-poc-api:latest
+            ghcr.io/g-hostin/medical-triage-poc-api:${{ github.sha }}
