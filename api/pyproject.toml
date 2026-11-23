@@ -1,0 +1,20 @@
+[project]
+name = "medical-triage-api"
+version = "0.1.0"
+description = "API de démonstration du POC de triage aux urgences"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.165.0",
+    "httpx>=0.28.1",
+    "pydantic>=2.14.4",
+    "uvicorn>=0.54.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.2.0",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]

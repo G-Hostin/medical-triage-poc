@@ -1,0 +1,50 @@
+services:
+  # Serveur d'inférence : sert le modèle fusionné de models/serve/<version> (API compatible OpenAI)
+  vllm:
+    image: vllm/vllm-openai:v0.34.0
+    command:
+      - --model
+      - /models/${MODEL_VERSION:-sft-v1}
+      - --served-model-name
+      - triage
+      - --max-model-len
+      - "2048"
+      - --dtype
+      - bfloat16
+      - --gpu-memory-utilization
+      - "0.80"
+    volumes:
+      - ./models/serve:/models:ro
+    ipc: host
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    # pas de port publié : le modèle n'est joignable que par l'API, sur le réseau interne de compose
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      # chargement du modèle et compilation au premier démarrage : plusieurs minutes
+      start_period: 300s
+
+  # API FastAPI : clé API, mise en forme de la réponse, journal des appels
+  api:
+    image: ghcr.io/g-hostin/medical-triage-poc-api:latest
+    build: ./api
+    ports:
+      - "8090:8000"
+    # seulement les variables utiles : les autres secrets du .env ne rentrent pas dans le conteneur
+    environment:
+      API_KEY: ${API_KEY}
+      MODEL_VERSION: ${MODEL_VERSION:-sft-v1}
+      VLLM_URL: http://vllm:8000
+    volumes:
+      - ./logs:/app/logs
+    depends_on:
+      vllm:
+        condition: service_healthy
