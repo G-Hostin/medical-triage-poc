@@ -34,3 +34,37 @@ uv run jupyter lab
 Le notebook 01 télécharge les corpus depuis Hugging Face (environ 1 Go pour UltraMedical-Preference). Le notebook 02 met environ six minutes à anonymiser l'ensemble des fichiers. Sa dernière cellule publie le jeu de données : il faut être connecté avec `uv run hf auth login`.
 
 Le notebook 03 appelle l'API Anthropic : copier `.env.example` en `.env` et y mettre une clé (`ANTHROPIC_API_KEY`). Les réponses sont gardées dans `data/interim/triage_reponses.jsonl`, une relance ne rappelle pas l'API.
+
+## Démo locale
+
+Il faut une carte graphique NVIDIA et Docker Desktop. Le modèle fusionné (adaptateur LoRA intégré aux poids, avec le tokenizer) doit se trouver dans `models/serve/sft-v1/`. Le nom du dossier est celui de `MODEL_VERSION` dans `.env`.
+
+Deux services dans `docker-compose.yml` :
+
+- `vllm` sert le modèle. Son port n'est pas publié, seule l'API peut l'appeler
+- `api` (FastAPI, dossier `api/`) vérifie la clé, construit le prompt, découpe la réponse du modèle et écrit le journal
+
+```bash
+docker compose up -d
+```
+
+vLLM met plusieurs minutes à charger le modèle, l'API ne démarre qu'une fois qu'il est prêt. Après une modification du code de l'API, ajouter `--build`.
+
+La page de démo est sur http://localhost:8090. La clé à saisir est la valeur de `API_KEY` dans `.env` (voir `.env.example`). `GET /health` indique si le modèle répond.
+
+```bash
+docker compose logs -f api
+docker compose logs -f vllm
+```
+
+Chaque appel à `POST /triage` ajoute une ligne JSON dans `logs/interactions.jsonl` (identifiant, horodatage, version du modèle, cas, réponse brute, niveau, tri, statut, latence), y compris quand le modèle ne répond pas.
+
+Les tests de l'API simulent le modèle et tournent sans carte graphique :
+
+```bash
+cd api
+uv sync
+uv run pytest
+```
+
+GitHub Actions lance ces tests à chaque push sur `main` et à chaque pull request. Sur `main`, il publie ensuite l'image de l'API sur `ghcr.io/g-hostin/medical-triage-poc-api` (étiquettes `latest` et SHA du commit).
