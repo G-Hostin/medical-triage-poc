@@ -4,7 +4,7 @@ services:
     image: vllm/vllm-openai:v0.34.0
     command:
       - --model
-      - /models/${MODEL_VERSION:-sft-v1}
+      - /models/${MODEL_VERSION:-dpo-v1}
       - --served-model-name
       - triage
       - --max-model-len
@@ -41,7 +41,7 @@ services:
     # seulement les variables utiles : les autres secrets du .env ne rentrent pas dans le conteneur
     environment:
       API_KEY: ${API_KEY}
-      MODEL_VERSION: ${MODEL_VERSION:-sft-v1}
+      MODEL_VERSION: ${MODEL_VERSION:-dpo-v1}
       VLLM_URL: http://vllm:8000
     volumes:
       - ./logs:/app/logs

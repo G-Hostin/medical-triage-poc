@@ -37,7 +37,7 @@ Le notebook 03 appelle l'API Anthropic : copier `.env.example` en `.env` et y me
 
 ## Démo locale
 
-Il faut une carte graphique NVIDIA et Docker Desktop. Le modèle fusionné (adaptateur LoRA intégré aux poids, avec le tokenizer) doit se trouver dans `models/serve/sft-v1/`. Le nom du dossier est celui de `MODEL_VERSION` dans `.env`.
+Il faut une carte graphique NVIDIA et Docker Desktop. Le modèle fusionné (adaptateurs LoRA du SFT et du DPO intégrés aux poids, avec le tokenizer) doit se trouver dans `models/serve/dpo-v1/` (`sft-v1` pour le modèle après le SFT seul). Le nom du dossier est celui de `MODEL_VERSION` dans `.env`.
 
 Deux services dans `docker-compose.yml` :
 
