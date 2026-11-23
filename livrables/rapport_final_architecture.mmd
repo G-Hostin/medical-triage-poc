@@ -1,0 +1,25 @@
+%% Architecture du POC de triage (environnement pilote)
+flowchart TB
+    subgraph ci["Intégration et livraison continues"]
+        direction LR
+        git["Dépôt GitHub<br>medical-triage-poc"] -->|push| tests["GitHub Actions<br>tests de l'API<br>modèle simulé"]
+        tests --> build["Build de l'image<br>de l'API"]
+        build -->|publication| ghcr[("GitHub Container<br>Registry")]
+    end
+
+    subgraph clients["Utilisateurs"]
+        direction LR
+        demo["Page de démo<br>navigateur"]
+        client["Client HTTP<br>futur lien avec le SIH"]
+    end
+
+    subgraph pilote["Environnement pilote : PC avec RTX 4070 SUPER 12 Go, docker compose"]
+        direction LR
+        env[".env<br>clé API, hors Git"] -.-> api["API FastAPI, port 8090<br>POST /triage<br>GET /health"]
+        api -->|"API compatible OpenAI<br>réseau interne Docker"| vllm["vLLM<br>vllm/vllm-openai:v0.34.0<br>port non exposé"]
+        poids[("Modèle sft-v1<br>fusionné")] --- vllm
+        api --> journal[("Journal JSONL<br>une ligne par requête")]
+    end
+
+    ci -->|"docker compose pull<br>puis up -d"| pilote
+    clients -->|"requête HTTP<br>X-API-Key + cas clinique"| pilote
