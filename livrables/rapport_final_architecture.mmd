@@ -17,7 +17,7 @@ flowchart TB
         direction LR
         env[".env<br>clé API, hors Git"] -.-> api["API FastAPI, port 8090<br>POST /triage<br>GET /health"]
         api -->|"API compatible OpenAI<br>réseau interne Docker"| vllm["vLLM<br>vllm/vllm-openai:v0.34.0<br>port non exposé"]
-        poids[("Modèle sft-v1<br>fusionné")] --- vllm
+        poids[("Modèle dpo-v1<br>fusionné")] --- vllm
         api --> journal[("Journal JSONL<br>une ligne par requête")]
     end
 
