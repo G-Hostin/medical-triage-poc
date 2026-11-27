@@ -12,7 +12,7 @@ Ce prototype ne pose pas de diagnostic et ne doit pas servir à conseiller des p
 - `dataset/README.md` : fiche du jeu de données (sources, licences, schéma des métadonnées, limites)
 - `livrables/etape1_donnees_rgpd.pdf` : schéma des métadonnées et démarche RGPD
 
-Le jeu de données est publié en privé sur Hugging Face (version 1.0, puis 1.1 avec les cas de triage). Le dossier `data/` n'est pas versionné : il est recréé par les notebooks.
+Le jeu de données est publié sur Hugging Face : [g-hostin/medical-triage-poc-data](https://huggingface.co/datasets/g-hostin/medical-triage-poc-data) (version 1.0, puis 1.1 avec les cas de triage). Le dossier `data/` n'est pas versionné : il est recréé par les notebooks.
 
 ## Étape 2 : entraînement et évaluation
 
@@ -25,6 +25,8 @@ Les modèles (`models/`) et la base MLflow (`mlflow.db`) ne sont pas versionnés
 ## Étape 3 : déploiement
 
 - `notebooks/07_tests_deploiement.ipynb` : latence, robustesse, garde-fous et audit du journal, sur l'API lancée en local
+- `notebooks/08_fusion_publication.ipynb` : fusion des adaptateurs LoRA dans le modèle et publication sur Hugging Face
+- `model/README.md` : fiche du modèle
 - `livrables/rapport_final.pdf` : rapport technique
 
 ## Installation
@@ -49,7 +51,11 @@ Le notebook 03 appelle l'API Anthropic : copier `.env.example` en `.env` et y me
 
 ## Démo locale
 
-Il faut une carte graphique NVIDIA et Docker Desktop. Le modèle fusionné (adaptateurs LoRA du SFT et du DPO intégrés aux poids, avec le tokenizer) doit se trouver dans `models/serve/dpo-v1/` (`sft-v1` pour le modèle après le SFT seul). Le nom du dossier est celui de `MODEL_VERSION` dans `.env`.
+Il faut une carte graphique NVIDIA et Docker Desktop. Le modèle fusionné (adaptateurs LoRA du SFT et du DPO intégrés aux poids, avec le tokenizer) doit se trouver dans `models/serve/dpo-v1/` (`sft-v1` pour le modèle après le SFT seul). Le nom du dossier est celui de `MODEL_VERSION` dans `.env`. Le modèle est publié sur Hugging Face, [g-hostin/medical-triage-poc-model](https://huggingface.co/g-hostin/medical-triage-poc-model) :
+
+```bash
+uv run hf download g-hostin/medical-triage-poc-model --revision dpo-v1 --exclude "adapters/*" --local-dir models/serve/dpo-v1
+```
 
 Deux services dans `docker-compose.yml` :
 
