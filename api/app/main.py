@@ -14,6 +14,7 @@ from pydantic import BaseModel, StringConstraints
 from app import llm
 from app.journal import write_entry
 from app.parsing import parse_answer
+from app.safety import check_input, red_flag
 
 STATIC_DIR = Path(__file__).parent / "static"
 
@@ -23,7 +24,12 @@ WARNING = (
     "Les niveaux proposés n'ont pas été validés cliniquement. "
     "Prototype (POC) entraîné sur des données publiques."
 )
-WARNING_INVALID = "Réponse du modèle hors format : faire un tri manuel. " + WARNING
+WARNING_INVALID = "Réponse du modèle hors format : faire un tri manuel. "
+WARNING_RAISED = "Niveau relevé à urgence maximale par la règle de sécurité (critère : {}). "
+REFUSALS = {
+    "hors_sujet": "Le texte ne décrit pas un patient : indiquer au moins l'âge, le motif ou les symptômes.",
+    "consigne": "Le texte contient une consigne adressée au modèle : décrire seulement le patient.",
+}
 
 app = FastAPI(title="API de triage aux urgences (POC)")
 
@@ -41,6 +47,9 @@ class TriageResponse(BaseModel):
     conduite: str | None
     reponse_brute: str
     statut: Literal["ok", "format_invalide"]
+    # niveau écrit par le modèle, et critère grave qui l'a fait relever (None si la règle n'a rien changé)
+    niveau_modele: str | None
+    regle_securite: str | None
     version_modele: str
     latence_ms: int
     avertissement: str
@@ -87,9 +96,18 @@ async def triage(request: TriageRequest):
         "reponse_brute": "",
         "niveau": None,
         "tri": None,
+        "niveau_modele": None,
+        "regle_securite": None,
         "statut": "erreur_modele",
         "latence_ms": 0,
     }
+
+    # filtre à l'entrée : le texte refusé n'est pas envoyé au modèle, mais il est journalisé
+    refusal = check_input(request.cas)
+    if refusal is not None:
+        entry.update(statut="refus_" + refusal, latence_ms=elapsed_ms(start))
+        write_entry(entry)
+        raise HTTPException(status_code=422, detail=REFUSALS[refusal])
 
     try:
         raw_answer = await llm.generate(llm.build_prompt(request.cas))
@@ -107,22 +125,41 @@ async def triage(request: TriageRequest):
         parsed = {"niveau": None, "tri": None, "explication": None, "conduite": None}
     else:
         status = "ok"
+    model_level = parsed["niveau"]
+
+    # règle de sécurité : un critère de tri 1 ou 2 de FRENCH dans le cas impose l'urgence maximale
+    flag = red_flag(request.cas)
+    if flag is not None and model_level != "urgence maximale":
+        # le tri FRENCH du modèle ne correspond plus au niveau : on ne le renvoie pas
+        parsed.update(niveau="urgence maximale", tri=None)
+    else:
+        flag = None
 
     entry.update(
         reponse_brute=raw_answer,
         niveau=parsed["niveau"],
         tri=parsed["tri"],
+        niveau_modele=model_level,
+        regle_securite=flag,
         statut=status,
         latence_ms=elapsed_ms(start),
     )
     write_entry(entry)
+
+    warning = WARNING
+    if status == "format_invalide":
+        warning = WARNING_INVALID + warning
+    if flag is not None:
+        warning = WARNING_RAISED.format(flag) + warning
 
     return TriageResponse(
         id=entry["id"],
         **parsed,
         reponse_brute=raw_answer,
         statut=status,
+        niveau_modele=model_level,
+        regle_securite=flag,
         version_modele=llm.MODEL_VERSION,
         latence_ms=entry["latence_ms"],
-        avertissement=WARNING if status == "ok" else WARNING_INVALID,
+        avertissement=warning,
     )

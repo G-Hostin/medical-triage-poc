@@ -114,6 +114,12 @@
     .level.moderee { background: #d35400; }
     .level.differee { background: #1e8449; }
     .level.invalide { background: #5d6d7e; }
+    .raised {
+      margin: 0 0 12px;
+      padding: 8px 12px;
+      border-left: 4px solid #c0392b;
+      background: #fdecea;
+    }
     h2 {
       margin: 16px 0 4px;
       font-size: 1rem;
@@ -163,6 +169,7 @@
 
   <section class="card" id="result" hidden>
     <div class="level" id="level"></div>
+    <p class="raised" id="raised" hidden></p>
     <h2>Explication</h2>
     <p id="explanation"></p>
     <h2>Conduite proposée</h2>
@@ -208,19 +215,26 @@
 
   function errorMessage(status, data) {
     if (status === 401) return "Clé API absente ou invalide.";
-    if (status === 422) return "Le cas doit faire entre 20 et 4 000 caractères.";
     if (data && typeof data.detail === "string") return data.detail + " (erreur " + status + ")";
+    if (status === 422) return "Le cas doit faire entre 20 et 4 000 caractères.";
     return "Erreur " + status + ".";
   }
 
   function showResult(data) {
     const level = document.getElementById("level");
     if (data.niveau) {
-      level.textContent = data.niveau.charAt(0).toUpperCase() + data.niveau.slice(1) + " (tri " + data.tri + ")";
+      const tri = data.tri ? " (tri " + data.tri + ")" : "";
+      level.textContent = data.niveau.charAt(0).toUpperCase() + data.niveau.slice(1) + tri;
       level.className = "level " + LEVEL_CLASSES[data.niveau];
     } else {
       level.textContent = "Format invalide : faire un tri manuel";
       level.className = "level invalide";
+    }
+    const raised = document.getElementById("raised");
+    raised.hidden = !data.regle_securite;
+    if (data.regle_securite) {
+      raised.textContent = "Relevé par la règle de sécurité : " + data.regle_securite
+        + ". Le modèle proposait : " + (data.niveau_modele || "aucun niveau lisible") + ".";
     }
     document.getElementById("explanation").textContent = data.explication || "Non disponible.";
     document.getElementById("conduct").textContent = data.conduite || "Non disponible.";
