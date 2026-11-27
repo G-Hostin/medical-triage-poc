@@ -15,7 +15,7 @@ flowchart TB
 
     subgraph pilote["Environnement pilote : PC avec RTX 4070 SUPER 12 Go, docker compose"]
         direction LR
-        env[".env<br>clé API, hors Git"] -.-> api["API FastAPI, port 8090<br>POST /triage<br>GET /health"]
+        env[".env<br>clé API, hors Git"] -.-> api["API FastAPI, port 8090<br>POST /triage, GET /health<br>filtre et règle de sécurité"]
         api -->|"API compatible OpenAI<br>réseau interne Docker"| vllm["vLLM<br>vllm/vllm-openai:v0.34.0<br>port non exposé"]
         poids[("Modèle dpo-v1<br>fusionné")] --- vllm
         api --> journal[("Journal JSONL<br>une ligne par requête")]
